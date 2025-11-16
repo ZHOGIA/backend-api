@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>B402 Relayer Frontend</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --card: #161b22;
+        --text: #c9d1d9;
+        --border: #30363d;
+        --accent: #58a6ff;
+        --error: #f85149;
+        --success: #3fb950;
+      }
+
+      body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+        margin: 2rem auto;
+        max-width: 650px;
+      }
+
+      h1,
+      h2 {
+        color: var(--accent);
+      }
+
+      input,
+      select,
+      button {
+        margin: 0.5rem 0;
+        padding: 0.6rem;
+        width: 100%;
+        font-size: 1rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--text);
+        box-sizing: border-box;
+      }
+
+      input::placeholder {
+        color: #8b949e;
+      }
+
+      button {
+        cursor: pointer;
+        background: var(--accent);
+        color: white;
+        border: none;
+        font-weight: bold;
+        transition: background 0.3s;
+      }
+
+      button:hover {
+        background: #1f6feb;
+      }
+
+      #log {
+        white-space: pre-wrap;
+        background: var(--card);
+        padding: 1rem;
+        margin-top: 1rem;
+        border: 1px solid var(--border);
+        max-height: 300px;
+        overflow-y: auto;
+        font-family: monospace;
+      }
+
+      .masked {
+        letter-spacing: 1px;
+      }
+
+      label {
+        font-weight: 600;
+        margin-top: 1rem;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>💠 B402 Relayer Frontend</h1>
+
+    <label>Private Key:</label>
+    <input type="text" id="privateKey" placeholder="0x..." />
+
+    <label>Bearer Token:</label>
+    <input type="text" id="bearer" placeholder="Bearer token" />
+
+    <label>RPC Provider:</label>
+    <select id="rpcSelect">
+      <option value="https://bsc.blockrazor.xyz" selected>
+        Blockrazor RPC
+      </option>
+      <option value="https://bsc-dataseed.binance.org">Binance Seed</option>
+      <option value="https://bsc-rpc.publicnode.com">Public Node</option>
+      <option value="custom">Custom RPC (manual input)</option>
+    </select>
+
+    <input
+      type="text"
+      id="rpcCustom"
+      placeholder="https://your-custom-rpc.com"
+      style="display: none"
+    />
+
+    <label>Number of Signatures:</label>
+    <input type="number" id="count" value="10" min="1" max="500" />
+
+    <button id="sendBtn">🚀 Send to Relayer</button>
+
+    <h2>Log</h2>
+    <div id="log"></div>
+
+    <script>
+      const rpcSelect = document.getElementById('rpcSelect')
+      const rpcCustom = document.getElementById('rpcCustom')
+      const logEl = document.getElementById('log')
+      const sendBtn = document.getElementById('sendBtn')
+      const privateKeyInput = document.getElementById('privateKey')
+
+      // === Show/hide custom RPC field ===
+      rpcSelect.addEventListener('change', () => {
+        rpcCustom.style.display =
+          rpcSelect.value === 'custom' ? 'block' : 'none'
+      })
+
+      // === Masking Private Key ===
+      let realPrivateKey = ''
+
+      privateKeyInput.addEventListener('input', (e) => {
+        const value = e.target.value.trim()
+
+        // update real value
+        realPrivateKey = value
+
+        // masking only if > 15
+        if (value.length > 15) {
+          const visible = value.slice(0, 10)
+          const masked = '•'.repeat(value.length - 10)
+          privateKeyInput.value = visible + masked
+          privateKeyInput.classList.add('masked')
+        } else {
+          privateKeyInput.classList.remove('masked')
+        }
+      })
+
+      // === Logging ===
+      function log(message) {
+        logEl.textContent += message + '\n'
+        logEl.scrollTop = logEl.scrollHeight
+      }
+
+      // === Send request ===
+      sendBtn.addEventListener('click', async () => {
+        const bearer = document.getElementById('bearer').value.trim()
+        const count = parseInt(document.getElementById('count').value) || 10
+        const rpcUrl =
+          rpcSelect.value === 'custom'
+            ? rpcCustom.value.trim()
+            : rpcSelect.value
+
+        if (!realPrivateKey || !bearer) {
+          alert('Private Key dan Bearer wajib diisi!')
+          return
+        }
+        if (rpcSelect.value === 'custom' && !rpcUrl) {
+          alert('Isi URL RPC custom terlebih dahulu!')
+          return
+        }
+
+        log('🚀 Starting request...')
+        log(`RPC: ${rpcUrl}`)
+        log(`Count: ${count}`)
+        log('--------------------------')
+
+        try {
+          const res = await fetch('https://b402-relayer1.vercel.app/api/meww', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              privateKey: realPrivateKey,
+              bearer,
+              count,
+              rpcUrl,
+            }),
+          })
+
+          const data = await res.json()
+
+          if (data.success) {
+            log(`✅ All requests completed.`)
+            log(`Session ID: ${data.sessionId}`)
+            log(`RPC Used: ${data.rpcUsed}`)
+            data.responses.forEach((r) => {
+              log(`Signature #${r.signatureIndex}: status ${r.status}`)
+            })
+          } else {
+            log('❌ Error: ' + JSON.stringify(data))
+          }
+        } catch (err) {
+          log('❌ Exception: ' + err.message)
+        }
+      })
+    </script>
+  </body>
+</html>
+
